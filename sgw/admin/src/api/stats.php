@@ -43,7 +43,7 @@ if (file_exists(LOG_FILE)) {
 
             [, $ip, $time, $request, $status, , $ua] = $m;
             $status = (int)$status;
-            if (is_admin_request($request)) continue;
+            if (is_excluded_log_request($request)) continue;
 
             // ── 今日统计 ──────────────────────────────────────────
             if (is_log_line_today($line)) {

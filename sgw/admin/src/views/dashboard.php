@@ -593,6 +593,14 @@ function isAdminRequest(request) {
   const escaped = ADMIN_SECRET_PATH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp('/' + escaped + '(?:/|\\s|\\?)').test(request);
 }
+
+/** 判断是否为无需展示的噪声请求 */
+function isExcludedRequest(request) {
+  if (isAdminRequest(request)) return true;
+  if (/\/favicon\.ico(?:\/|\s|\?|$)/.test(request)) return true;
+  if (/\/health(?:\/|\s|\?|$)/.test(request)) return true;
+  return false;
+}
 let allBlEntries = [];   // 黑名单完整数据缓存
 let allWlEntries = [];   // 白名单完整数据缓存
 let wlCommentMap = {};   // ip → 白名单备注（供日志列显示）
@@ -815,7 +823,7 @@ function renderLogs() {
   const subOnly = document.querySelector('input[name="sub-filter"][value="subscribe"]').checked;
 
   let rows = allLogs.filter(l => {
-    if (isAdminRequest(l.request)) return false;
+    if (isExcludedRequest(l.request)) return false;
     if (subOnly && !isSubscribeRequest(l.request)) return false;
     if (fIp     && !l.ip.toLowerCase().includes(fIp)) return false;
     if (fStatus && String(l.status) !== fStatus) return false;

@@ -9,22 +9,17 @@ http {
     include       /etc/nginx/mime.types;
     default_type  application/octet-stream;
 
-    # Restore the real client IP before logging, geo checks, deny rules,
-    # and rate limiting evaluate $remote_addr.
     include /etc/nginx/subscribe/real_ip.conf;
 
     log_format  main  '$remote_addr [$time_local] "$request" '
                       '$status $body_bytes_sent "$http_user_agent"';
 
-    access_log  /var/log/subscribe/access.log  main;
     error_log   /var/log/subscribe/error.log   warn;
 
     sendfile on;
     keepalive_timeout 65;
     server_tokens off;
 
-    # DNS 解析器：放在 http 块才能对 proxy_pass 变量生效
-    # valid=60s 缓存解析结果 60 秒，上游 IP 变动时自动重新解析
     resolver 1.1.1.1 valid=60s ipv6=off;
     resolver_timeout 5s;
 
@@ -33,20 +28,14 @@ http {
         ''      close;
     }
 
-    # 云IP识别 + UA规则 + 速率限制（由 update_cloud_geo.sh 生成）
     include /etc/nginx/subscribe/cloud_geo.conf;
-
-    # 白名单geo块（由 reload_whitelist.sh 生成）
     include /etc/nginx/subscribe/whitelist.conf;
-
-    # 自定义封禁UA（由 admin 写入）
     include /etc/nginx/subscribe/ua_custom.conf;
-
-    # UA白名单（由 admin 写入，优先级高于封禁UA）
     include /etc/nginx/subscribe/ua_whitelist.conf;
 
     server {
         listen 80 default_server;
+        access_log off;
         return 444;
     }
 
@@ -61,23 +50,24 @@ http {
         ssl_session_cache   shared:SSL:10m;
         ssl_session_timeout 10m;
 
+        access_log  /var/log/subscribe/access.log  main;
+
         error_page 497 =444 @blackhole;
         location @blackhole { return 444; }
 
-        # 黑名单（deny规则，由admin实时写入）
         include /etc/nginx/subscribe/blacklist.conf;
-
-        # 管理后台（经 443 反代到 admin 容器，兼容 CDN）
         include /etc/nginx/subscribe/admin_proxy.conf;
-
-        # 订阅拦截规则
         include /etc/nginx/subscribe/protect.conf;
 
-        # 健康检查（用于确认网关 SSL 与 nginx 正常）
         location = /health {
             access_log off;
             default_type text/plain;
             return 200 "ok\n";
+        }
+
+        location = /favicon.ico {
+            access_log off;
+            return 404;
         }
 
         location / { return 404; }

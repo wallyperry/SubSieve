@@ -147,6 +147,18 @@ EOF
     log "管理后台入口：https://<域名>/${secret}"
 }
 
+write_nginx_conf() {
+    if [[ -n "${GATEWAY_DOMAIN:-}" ]]; then
+        log "网关绑定域名: ${GATEWAY_DOMAIN}（其他 Host 不写入订阅日志）"
+        envsubst '${GATEWAY_DOMAIN}' \
+            < /etc/nginx/templates-src/nginx.conf.template \
+            > /etc/nginx/nginx.conf
+    else
+        log "[警告] GATEWAY_DOMAIN 未设置，443 将接受任意 Host（建议在 .env 中配置网关域名）"
+        cp /etc/nginx/templates-src/nginx.conf.standalone /etc/nginx/nginx.conf
+    fi
+}
+
 log "生成 protect.conf ..."
 envsubst '${V2B_BACKEND} ${V2B_HOST} ${SUBSCRIBE_PATH}' \
     < /etc/nginx/templates-src/subscribe_protect.conf.template \
@@ -154,8 +166,7 @@ envsubst '${V2B_BACKEND} ${V2B_HOST} ${SUBSCRIBE_PATH}' \
 
 write_real_ip_conf
 write_admin_proxy_conf
-
-cp /etc/nginx/templates-src/nginx.conf /etc/nginx/nginx.conf
+write_nginx_conf
 
 # ── SSL 证书检查（尽早失败）──────────────────────────────────
 if [[ ! -f /etc/nginx/ssl/cert.pem || ! -f /etc/nginx/ssl/key.pem ]]; then

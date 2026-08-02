@@ -218,9 +218,19 @@ function extract_log_request(string $line): string {
 }
 
 /**
- * 判断日志行是否为管理后台请求。
+ * 判断是否为无需在后台展示的噪声请求。
  */
-function is_admin_log_line(string $line): bool {
+function is_excluded_log_request(string $request): bool {
+    if (is_admin_request($request)) return true;
+    if (preg_match('#\s/favicon\.ico(?:\s|\?)#', $request)) return true;
+    if (preg_match('#\s/health(?:\s|\?)#', $request)) return true;
+    return false;
+}
+
+/**
+ * 判断日志行是否应排除（管理后台 / favicon / health 等）。
+ */
+function is_excluded_log_line(string $line): bool {
     $request = extract_log_request($line);
-    return $request !== '' && is_admin_request($request);
+    return $request !== '' && is_excluded_log_request($request);
 }

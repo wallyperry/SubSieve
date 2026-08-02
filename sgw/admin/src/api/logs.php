@@ -158,7 +158,7 @@ if (file_exists(LOG_FILE)) {
             $line = rtrim($line);
             if ($line === '') continue;
             if ($mode === 'today' && !is_log_line_today($line)) continue;
-            if (is_admin_log_line($line)) continue;
+            if (is_excluded_log_line($line)) continue;
             $buffer[] = $line;
             if (count($buffer) > $maxRows) array_shift($buffer);
         }
@@ -181,7 +181,7 @@ function parse_line(string $line): ?array {
 
     [, $ip, $time, $request, $status, $bytes, $ua] = $m;
 
-    if (is_admin_request($request)) return null;
+    if (is_excluded_log_request($request)) return null;
 
     $token = extract_subscribe_token($request);
 
