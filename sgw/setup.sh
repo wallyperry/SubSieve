@@ -18,7 +18,7 @@ echo -e "${BOLD}SubSieve — 部署向导${RESET}"
 echo "────────────────────────────────────────"
 
 # ── 加载上次保存的输入 ─────────────────────────────────────────
-_S_V2B_HOST=""; _S_SUBSCRIBE_PATH=""; _S_GATEWAY_PORT=""; _S_SSL_DOMAIN=""
+_S_V2B_HOST=""; _S_V2B_PORT=""; _S_SUBSCRIBE_PATH=""; _S_GATEWAY_PORT=""; _S_SSL_DOMAIN=""
 _S_AXISNOW_TRUSTED_IPS=""; _S_REAL_IP_HEADER=""
 if [[ -f "$STATE_FILE" ]]; then
     # shellcheck source=/dev/null
@@ -73,7 +73,19 @@ echo ""
 echo -e "${CYAN}请填写机场信息${RESET}"
 ask "机场地址（如 panel.yourdomain.com，不含 https://）" "$_S_V2B_HOST" V2B_HOST
 V2B_HOST="${V2B_HOST#https://}"
-V2B_BACKEND="https://${V2B_HOST}"
+V2B_HOST="${V2B_HOST%%/*}"
+# 若用户输入了端口，自动分离
+if [[ "$V2B_HOST" == *:* ]]; then
+    V2B_PORT="${V2B_HOST##*:}"
+    V2B_HOST="${V2B_HOST%%:*}"
+else
+    ask "机场后端端口（默认 443）" "${_S_V2B_PORT:-443}" V2B_PORT
+fi
+if [[ "${V2B_PORT:-443}" == "443" ]]; then
+    V2B_BACKEND="https://${V2B_HOST}"
+else
+    V2B_BACKEND="https://${V2B_HOST}:${V2B_PORT}"
+fi
 
 ask "订阅路径（XBoard 默认 /s/）" "${_S_SUBSCRIBE_PATH:-/s/}" SUBSCRIBE_PATH
 
@@ -102,6 +114,7 @@ SSL_DOMAIN="${SSL_DOMAIN%%/*}"
 # ── 持久化本次输入（下次重跑时作为默认值）────────────────────
 cat > "$STATE_FILE" <<EOF
 _S_V2B_HOST="${V2B_HOST}"
+_S_V2B_PORT="${V2B_PORT:-443}"
 _S_SUBSCRIBE_PATH="${SUBSCRIBE_PATH}"
 _S_GATEWAY_PORT="${GATEWAY_PORT}"
 _S_SSL_DOMAIN="${SSL_DOMAIN}"
@@ -275,6 +288,9 @@ print_summary() {
     echo -e "  拦截端口：${CYAN}https://${DISPLAY_HOST}${PORT_SUFFIX}${RESET}"
     echo -e "  订阅路径：${CYAN}${SUBSCRIBE_PATH}${RESET}"
     echo -e "  代理到：  ${CYAN}${V2B_BACKEND}${RESET}"
+    echo -e "  订阅示例：${CYAN}https://${DISPLAY_HOST}${PORT_SUFFIX}${SUBSCRIBE_PATH}你的Token${RESET}"
+    echo -e "  健康检查：${CYAN}https://${DISPLAY_HOST}${PORT_SUFFIX}/health${RESET}（应返回 ok）"
+    echo -e "  ${YELLOW}注意：网关根路径 / 不提供页面，请直接访问订阅链接或管理后台${RESET}"
     echo ""
     echo -e "  ${BOLD}以上信息已保存到 .env 和 DEPLOY_INFO.txt${RESET}"
     echo -e "${BOLD}════════════════════════════════════════════${RESET}"

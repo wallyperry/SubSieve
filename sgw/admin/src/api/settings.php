@@ -170,16 +170,20 @@ location ^~ $subscribePath {
     limit_req zone=subscribe_limit burst=5 nodelay;
     limit_req_status 429;
 
-    proxy_pass          $backend;
+    set \$upstream_backend   $backend;
+    proxy_pass              \$upstream_backend;
     proxy_set_header    Host              $host;
     proxy_set_header    X-Real-IP         \$remote_addr;
     proxy_set_header    X-Forwarded-For   \$proxy_add_x_forwarded_for;
     proxy_set_header    REMOTE-HOST       \$remote_addr;
     proxy_ssl_server_name on;
+    proxy_ssl_name        $host;
     proxy_set_header    Upgrade           \$http_upgrade;
     proxy_set_header    Connection        \$connection_upgrade;
     proxy_http_version  1.1;
-    resolver            1.1.1.1           ipv6=off;
+    proxy_connect_timeout 10s;
+    proxy_send_timeout    15s;
+    proxy_read_timeout    60s;
 
     add_header Cache-Control no-store;
     add_header X-Subscribe-Filter "active";

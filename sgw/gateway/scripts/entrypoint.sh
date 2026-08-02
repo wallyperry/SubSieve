@@ -125,6 +125,20 @@ write_real_ip_conf
 
 cp /etc/nginx/templates-src/nginx.conf /etc/nginx/nginx.conf
 
+# ── 启动前校验 ────────────────────────────────────────────────
+if [[ ! -f /etc/nginx/ssl/cert.pem || ! -f /etc/nginx/ssl/key.pem ]]; then
+    log "❌ SSL 证书缺失：请确保宿主机 sgw/ssl/cert.pem 与 ssl/key.pem 存在"
+    exit 1
+fi
+
+log "订阅路径: ${SUBSCRIBE_PATH:-/s/}"
+log "反代目标: ${V2B_BACKEND} (Host: ${V2B_HOST})"
+
+if ! nginx -t 2>&1 | tee -a "$LOG"; then
+    log "❌ nginx 配置检测失败，拒绝启动"
+    exit 1
+fi
+
 # 初始化空白名单
 [[ ! -f /etc/nginx/subscribe/whitelist_ips.txt ]] && touch /etc/nginx/subscribe/whitelist_ips.txt
 chmod 666 /etc/nginx/subscribe/whitelist_ips.txt
