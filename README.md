@@ -61,7 +61,7 @@ sgw/
 ### 一键部署
 
 ```bash
-git clone https://github.com/Null404-0/SubSieve.git
+git clone https://github.com/wallyperry/SubSieve.git
 cd SubSieve/sgw
 chmod +x setup.sh
 ./setup.sh
