@@ -197,3 +197,30 @@ function is_subscribe_request(string $request): bool {
     $quoted = preg_quote(get_subscribe_path_prefix(), '#');
     return (bool) preg_match('#\s' . $quoted . '[^/?\s"]+#', $request);
 }
+
+/**
+ * 判断是否为管理后台相关请求（按 ADMIN_SECRET_PATH 匹配）。
+ */
+function is_admin_request(string $request): bool {
+    if (ADMIN_SECRET_PATH === '') return false;
+    $quoted = preg_quote('/' . ADMIN_SECRET_PATH, '#');
+    return (bool) preg_match('#\s' . $quoted . '(?:/|\s|\?)#', $request);
+}
+
+/**
+ * 从内部格式日志行提取 request 字段。
+ */
+function extract_log_request(string $line): string {
+    if (preg_match('/ "([^"]*)" \d+ /', $line, $m)) {
+        return $m[1];
+    }
+    return '';
+}
+
+/**
+ * 判断日志行是否为管理后台请求。
+ */
+function is_admin_log_line(string $line): bool {
+    $request = extract_log_request($line);
+    return $request !== '' && is_admin_request($request);
+}

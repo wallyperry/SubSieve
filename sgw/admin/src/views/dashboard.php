@@ -578,12 +578,20 @@ let statsLimits = {ips: 10, tokens: 10, uas: 10, suspTokens: 10, suspIps: 10};
 let statsPages  = {ips:  1, tokens:  1, uas:  1, suspTokens:  1, suspIps:  1};
 
 const SUBSCRIBE_PATH_PREFIX = <?= json_encode($_preSg['subscribe_path'] ?? DEFAULT_SUBSCRIBE_PATH, JSON_UNESCAPED_UNICODE) ?>;
+const ADMIN_SECRET_PATH = <?= json_encode(ADMIN_SECRET_PATH, JSON_UNESCAPED_UNICODE) ?>;
 
 /** 判断日志 request 是否为 XBoard 订阅请求（/s/{token}） */
 function isSubscribeRequest(request) {
   const prefix = SUBSCRIBE_PATH_PREFIX || '/s/';
   const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(escaped + '[^/?\\s"]+').test(request);
+}
+
+/** 判断是否为管理后台请求（按安全路径匹配） */
+function isAdminRequest(request) {
+  if (!ADMIN_SECRET_PATH) return false;
+  const escaped = ADMIN_SECRET_PATH.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp('/' + escaped + '(?:/|\\s|\\?)').test(request);
 }
 let allBlEntries = [];   // 黑名单完整数据缓存
 let allWlEntries = [];   // 白名单完整数据缓存
@@ -807,6 +815,7 @@ function renderLogs() {
   const subOnly = document.querySelector('input[name="sub-filter"][value="subscribe"]').checked;
 
   let rows = allLogs.filter(l => {
+    if (isAdminRequest(l.request)) return false;
     if (subOnly && !isSubscribeRequest(l.request)) return false;
     if (fIp     && !l.ip.toLowerCase().includes(fIp)) return false;
     if (fStatus && String(l.status) !== fStatus) return false;

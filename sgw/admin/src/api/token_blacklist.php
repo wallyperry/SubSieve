@@ -22,6 +22,7 @@ if ($method === 'GET') {
                 if (!is_log_line_today($line)) continue;
                 if (!preg_match('/^(\S+) \[[^\]]+\] "([^"]*)" (\d+)/', $line, $m)) continue;
                 [, $ip, $request, $status] = $m;
+                if (is_admin_request($request)) continue;
                 if ((int)$status !== 200) continue;
                 $tok = extract_subscribe_token($request);
                 if ($tok === '') continue;
