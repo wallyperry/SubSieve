@@ -157,7 +157,7 @@ write_admin_proxy_conf
 
 cp /etc/nginx/templates-src/nginx.conf /etc/nginx/nginx.conf
 
-# ── 启动前校验 ────────────────────────────────────────────────
+# ── SSL 证书检查（尽早失败）──────────────────────────────────
 if [[ ! -f /etc/nginx/ssl/cert.pem || ! -f /etc/nginx/ssl/key.pem ]]; then
     log "❌ SSL 证书缺失：请确保宿主机 sgw/ssl/cert.pem 与 ssl/key.pem 存在"
     exit 1
@@ -165,11 +165,6 @@ fi
 
 log "订阅路径: ${SUBSCRIBE_PATH:-/s/}"
 log "反代目标: ${V2B_BACKEND} (Host: ${V2B_HOST})"
-
-if ! nginx -t 2>&1 | tee -a "$LOG"; then
-    log "❌ nginx 配置检测失败，拒绝启动"
-    exit 1
-fi
 
 # 初始化空白名单
 [[ ! -f /etc/nginx/subscribe/whitelist_ips.txt ]] && touch /etc/nginx/subscribe/whitelist_ips.txt
@@ -211,9 +206,30 @@ chmod 666 /etc/nginx/subscribe/ua_whitelist.conf /etc/nginx/subscribe/ua_whiteli
 # 首次拉取云IP库
 if [[ ! -f /etc/nginx/subscribe/cloud_geo.conf ]]; then
     log "首次启动：拉取云厂商IP库..."
-    SKIP_NGINX_RELOAD=1 /scripts/update_cloud_geo.sh
-else
-    log "cloud_geo.conf 已存在，跳过初次拉取"
+    SKIP_NGINX_RELOAD=1 /scripts/update_cloud_geo.sh || log "[警告] 云IP库拉取失败"
+fi
+
+# 兜底：确保 nginx include 的配置文件均存在
+if [[ ! -f /etc/nginx/subscribe/cloud_geo.conf ]]; then
+    log "[警告] cloud_geo.conf 缺失，写入最小占位配置"
+    cat > /etc/nginx/subscribe/cloud_geo.conf <<'GEOEOF'
+# placeholder — cloud geo fetch failed or pending
+limit_req_zone $binary_remote_addr zone=subscribe_limit:10m rate=20r/m;
+geo $is_cloud_ip { default 0; }
+map $http_user_agent $bad_subscribe_ua {
+    default 0;
+    "" 1;
+}
+GEOEOF
+fi
+
+[[ ! -f /etc/nginx/subscribe/whitelist.conf ]] && SKIP_NGINX_RELOAD=1 /scripts/reload_whitelist.sh
+[[ ! -f /etc/nginx/subscribe/blacklist.conf ]] && echo "# blacklist" > /etc/nginx/subscribe/blacklist.conf
+[[ ! -f /etc/nginx/subscribe/admin_proxy.conf ]] && write_admin_proxy_conf
+
+if ! nginx -t 2>&1 | tee -a "$LOG"; then
+    log "❌ nginx 配置检测失败，拒绝启动"
+    exit 1
 fi
 
 # 每周定时更新
