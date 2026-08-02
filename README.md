@@ -136,7 +136,15 @@ cd SubSieve/sgw
 ## 访问后台
 
 ```
-https://你的域名或IP:64444/<随机路径>
+https://你的域名/<随机路径>
+```
+
+推荐使用 **443 端口 + 随机路径**（与订阅网关同端口，兼容 Cloudflare 等 CDN）。
+
+备用直连（需服务器放行 64444，CDN 通常不支持该端口）：
+
+```
+https://你的域名:64444/<随机路径>
 ```
 
 路径和账号密码见 `DEPLOY_INFO.txt`，或查看 `.env` 中的 `ADMIN_SECRET_PATH` / `ADMIN_PASS`。

@@ -280,7 +280,8 @@ print_summary() {
     echo -e "${BOLD}════════════════════════════════════════════${RESET}"
     echo ""
     echo -e "  ${BOLD}管理后台${RESET}"
-    echo -e "  地址：${CYAN}https://${DISPLAY_HOST}:64444/${ADMIN_SECRET_PATH}${RESET}"
+    echo -e "  推荐：${CYAN}https://${DISPLAY_HOST}${PORT_SUFFIX}/${ADMIN_SECRET_PATH}${RESET}（443 端口，兼容 CDN）"
+    echo -e "  备用：${CYAN}https://${DISPLAY_HOST}:64444/${ADMIN_SECRET_PATH}${RESET}（需放行 64444，CDN 通常不支持）"
     echo -e "  用户名：${YELLOW}${ADMIN_USER}${RESET}"
     echo -e "  密码：  ${YELLOW}${ADMIN_PASS}${RESET}"
     echo ""
@@ -314,7 +315,8 @@ SubSieve 部署信息
 生成时间: $(date '+%Y-%m-%d %H:%M:%S')
 
 管理后台
-  地址:   https://${DISPLAY_HOST}:64444/${ADMIN_SECRET_PATH}
+  推荐:   https://${DISPLAY_HOST}${PORT_SUFFIX}/${ADMIN_SECRET_PATH}
+  备用:   https://${DISPLAY_HOST}:64444/${ADMIN_SECRET_PATH}
   用户名: ${ADMIN_USER}
   密码:   ${ADMIN_PASS}
 

@@ -5,6 +5,8 @@ services:
     build: ./gateway
     container_name: subscribe-gateway
     restart: unless-stopped
+    depends_on:
+      - admin
     ports:
       - "80:80"
       - "${GATEWAY_PORT:-443}:443"
@@ -12,6 +14,7 @@ services:
       - V2B_BACKEND=${V2B_BACKEND}
       - V2B_HOST=${V2B_HOST}
       - SUBSCRIBE_PATH=${SUBSCRIBE_PATH:-/s/}
+      - ADMIN_SECRET_PATH=${ADMIN_SECRET_PATH}
       - AXISNOW_TRUSTED_IPS=${AXISNOW_TRUSTED_IPS:-}
       - REAL_IP_HEADER=${REAL_IP_HEADER:-X-Forwarded-For}
     volumes:
@@ -23,6 +26,8 @@ services:
     build: ./admin
     container_name: subscribe-admin
     restart: unless-stopped
+    expose:
+      - "8080"
     ports:
       - "64444:64444"
     environment:
