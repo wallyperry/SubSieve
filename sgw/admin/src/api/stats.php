@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/_auth.php';
 
-$today  = date('d/M/Y');
 $ips    = [];   // ip => [total,200,403,429,444]  (today only)
 $tokens = [];   // token => [count, last_time]     (today only)
 $badUas = [];   // ua => count (403 only, today)
@@ -46,7 +45,7 @@ if (file_exists(LOG_FILE)) {
             $status = (int)$status;
 
             // ── 今日统计 ──────────────────────────────────────────
-            if (str_contains($line, "[$today:")) {
+            if (is_log_line_today($line)) {
                 if (!isset($ips[$ip])) $ips[$ip] = ['total'=>0,'s200'=>0,'s403'=>0,'s429'=>0,'s444'=>0];
                 $ips[$ip]['total']++;
                 if ($status === 200) $ips[$ip]['s200']++;

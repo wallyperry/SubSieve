@@ -17,7 +17,7 @@ if [[ ! -f .env ]]; then
     echo -e "${RED}❌ 未找到 .env 文件${RESET}"
     echo ""
     echo "   .env 包含管理密码、Secret Path 等关键配置，缺失后重建容器会导致："
-    echo "     • 管理后台无法访问（Secret Path 丢失）"
+    echo "     • 管理后台无法登录（管理员密码丢失）"
     echo "     • 订阅网关无法启动（V2B_BACKEND 未设置）"
     echo ""
     echo "   解决方法："
@@ -115,13 +115,16 @@ for NAME in subscribe-gateway subscribe-admin; do
     fi
 done
 
-# 检查管理后台端口是否可达
-ADMIN_PORT=64444
-if (echo > /dev/tcp/localhost/$ADMIN_PORT) 2>/dev/null; then
-    echo -e "  ✅ 管理后台端口 ${ADMIN_PORT} 可达"
+# 检查管理后台内部服务是否可达
+ADMIN_SECRET_PATH_CHECK=$(grep '^ADMIN_SECRET_PATH=' .env 2>/dev/null | cut -d= -f2- || true)
+if [[ -n "$ADMIN_SECRET_PATH_CHECK" ]] && docker exec subscribe-admin php -r "
+    \$r = @file_get_contents('http://127.0.0.1:8080/${ADMIN_SECRET_PATH_CHECK}/');
+    exit (\$r && (stripos(\$r, 'login') !== false || stripos(\$r, 'SubSieve') !== false)) ? 0 : 1;
+" 2>/dev/null; then
+    echo -e "  ✅ 管理后台服务正常（/${ADMIN_SECRET_PATH_CHECK}）"
 else
-    echo -e "  ❌ 管理后台端口 ${ADMIN_PORT} 不可达"
-    echo -e "${YELLOW}  nginx 可能未正常启动，请查看日志：${RESET}"
+    echo -e "  ❌ 管理后台内部服务不可达"
+    echo -e "${YELLOW}  请查看日志：${RESET}"
     docker logs --tail 20 subscribe-admin 2>&1 | sed 's/^/    /' || true
     HEALTH_OK=false
 fi

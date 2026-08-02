@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================
 # setup.sh — 首次部署脚本（支持断点续跑）
-# 自动生成随机密钥 → 写入 .env → 申请SSL → 启动容器 → 打印访问信息
+# 交互填写配置 → 写入 .env → 申请SSL → 启动容器 → 打印访问信息
 # =============================================================
 
 set -euo pipefail
@@ -19,7 +19,7 @@ echo "────────────────────────�
 
 # ── 加载上次保存的输入 ─────────────────────────────────────────
 _S_V2B_HOST=""; _S_V2B_PORT=""; _S_SUBSCRIBE_PATH=""; _S_GATEWAY_PORT=""; _S_SSL_DOMAIN=""
-_S_AXISNOW_TRUSTED_IPS=""; _S_REAL_IP_HEADER=""
+_S_AXISNOW_TRUSTED_IPS=""; _S_REAL_IP_HEADER=""; _S_ADMIN_USER=""; _S_ADMIN_SECRET_PATH=""
 if [[ -f "$STATE_FILE" ]]; then
     # shellcheck source=/dev/null
     source "$STATE_FILE" 2>/dev/null || true
@@ -38,18 +38,64 @@ ask() {
     fi
 }
 
-# ── 随机生成函数 ───────────────────────────────────────────────
-gen_random() { head -c 48 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9' | head -c "$1"; }
+ask_password() {
+    local prompt="$1" var="$2" val val2
+    while true; do
+        read -rsp "${prompt}: " val
+        echo ""
+        read -rsp "确认密码: " val2
+        echo ""
+        if [[ -z "$val" ]]; then
+            echo -e "${YELLOW}密码不能为空${RESET}"
+            continue
+        fi
+        if [[ ${#val} -lt 6 ]]; then
+            echo -e "${YELLOW}密码至少需要 6 位${RESET}"
+            continue
+        fi
+        if [[ "$val" != "$val2" ]]; then
+            echo -e "${YELLOW}两次输入的密码不一致${RESET}"
+            continue
+        fi
+        printf -v "$var" '%s' "$val"
+        break
+    done
+}
 
-# ── 检查 .env → 决定是否重新生成凭证 ─────────────────────────
-REGEN_CREDS=true
-ADMIN_USER="admin"; ADMIN_PASS=""; ADMIN_SECRET_PATH=""
+ask_secret_path() {
+    local prompt="$1" default="$2" var="$3" val
+    while true; do
+        if [[ -n "$default" ]]; then
+            read -rp "${prompt} [${default}]: " val
+            val="${val:-$default}"
+        else
+            read -rp "${prompt}: " val
+        fi
+        val="${val#/}"
+        val="${val%/}"
+        if [[ -z "$val" ]]; then
+            echo -e "${YELLOW}路径不能为空${RESET}"
+            continue
+        fi
+        if [[ ! "$val" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo -e "${YELLOW}仅允许字母、数字、下划线和连字符${RESET}"
+            continue
+        fi
+        printf -v "$var" '%s' "$val"
+        break
+    done
+}
+
+ADMIN_SECRET_PATH=""
+KEEP_ADMIN_CREDS=false
+ADMIN_USER="admin"
+ADMIN_PASS=""
+
 if [[ -f .env ]]; then
     echo -e "${YELLOW}⚠  检测到已有 .env 文件${RESET}"
-    read -rp "是否重新生成账号密码和访问路径？(y/N): " _CONFIRM
-    if [[ "${_CONFIRM,,}" != "y" ]]; then
-        REGEN_CREDS=false
-        # 从现有 .env 逐行解析凭证（避免 source 副作用）
+    read -rp "是否保留现有管理员配置（路径/账号/密码）？(Y/n): " _KEEP
+    if [[ "${_KEEP,,}" != "n" ]]; then
+        KEEP_ADMIN_CREDS=true
         while IFS='=' read -r _key _val; do
             [[ "$_key" =~ ^[[:space:]]*# ]] && continue
             [[ -z "${_key// /}" ]] && continue
@@ -60,10 +106,9 @@ if [[ -f .env ]]; then
                 ADMIN_SECRET_PATH) ADMIN_SECRET_PATH="$_val" ;;
             esac
         done < .env
-        # 若解析失败则重新生成
         if [[ -z "$ADMIN_PASS" || -z "$ADMIN_SECRET_PATH" ]]; then
-            echo -e "${YELLOW}⚠  无法从 .env 读取凭证，将重新生成${RESET}"
-            REGEN_CREDS=true
+            echo -e "${YELLOW}⚠  无法从 .env 读取完整管理员配置，请重新设置${RESET}"
+            KEEP_ADMIN_CREDS=false
         fi
     fi
 fi
@@ -90,6 +135,16 @@ fi
 ask "订阅路径（XBoard 默认 /s/）" "${_S_SUBSCRIBE_PATH:-/s/}" SUBSCRIBE_PATH
 
 ask "用来接收客户订阅请求的端口（默认 443）" "${_S_GATEWAY_PORT:-443}" GATEWAY_PORT
+
+# ── 管理后台账号 ───────────────────────────────────────────────
+if [[ "$KEEP_ADMIN_CREDS" != "true" ]]; then
+    echo ""
+    echo -e "${CYAN}管理后台${RESET}"
+    echo -e "  通过 443 端口 + 自定义路径访问，例如：https://你的域名/路径"
+    ask_secret_path "管理后台路径（不含 /，如 wallyperry）" "${_S_ADMIN_SECRET_PATH:-}" ADMIN_SECRET_PATH
+    ask "管理员用户名" "${_S_ADMIN_USER:-admin}" ADMIN_USER
+    ask_password "管理员密码（至少6位）" ADMIN_PASS
+fi
 
 # ── CDN / 反代真实 IP ─────────────────────────────────────────
 echo ""
@@ -120,6 +175,8 @@ _S_GATEWAY_PORT="${GATEWAY_PORT}"
 _S_SSL_DOMAIN="${SSL_DOMAIN}"
 _S_AXISNOW_TRUSTED_IPS="${AXISNOW_TRUSTED_IPS}"
 _S_REAL_IP_HEADER="${REAL_IP_HEADER}"
+_S_ADMIN_USER="${ADMIN_USER}"
+_S_ADMIN_SECRET_PATH="${ADMIN_SECRET_PATH}"
 EOF
 
 mkdir -p ssl
@@ -216,13 +273,7 @@ elif ! docker info &>/dev/null 2>&1; then
     systemctl start docker 2>/dev/null || true
 fi
 
-# ── 生成/保留凭证 ──────────────────────────────────────────────
 GATEWAY_CONTAINER="subscribe-gateway"
-if [[ "$REGEN_CREDS" == "true" ]]; then
-    ADMIN_USER="admin"
-    ADMIN_PASS="$(gen_random 16)"
-    ADMIN_SECRET_PATH="$(gen_random 12)"
-fi
 
 # ── 写入 .env ─────────────────────────────────────────────────
 cat > .env <<EOF
@@ -280,8 +331,7 @@ print_summary() {
     echo -e "${BOLD}════════════════════════════════════════════${RESET}"
     echo ""
     echo -e "  ${BOLD}管理后台${RESET}"
-    echo -e "  推荐：${CYAN}https://${DISPLAY_HOST}${PORT_SUFFIX}/${ADMIN_SECRET_PATH}${RESET}（443 端口，兼容 CDN）"
-    echo -e "  备用：${CYAN}https://${DISPLAY_HOST}:64444/${ADMIN_SECRET_PATH}${RESET}（需放行 64444，CDN 通常不支持）"
+    echo -e "  地址：  ${CYAN}https://${DISPLAY_HOST}${PORT_SUFFIX}/${ADMIN_SECRET_PATH}${RESET}"
     echo -e "  用户名：${YELLOW}${ADMIN_USER}${RESET}"
     echo -e "  密码：  ${YELLOW}${ADMIN_PASS}${RESET}"
     echo ""
@@ -315,8 +365,7 @@ SubSieve 部署信息
 生成时间: $(date '+%Y-%m-%d %H:%M:%S')
 
 管理后台
-  推荐:   https://${DISPLAY_HOST}${PORT_SUFFIX}/${ADMIN_SECRET_PATH}
-  备用:   https://${DISPLAY_HOST}:64444/${ADMIN_SECRET_PATH}
+  地址:   https://${DISPLAY_HOST}${PORT_SUFFIX}/${ADMIN_SECRET_PATH}
   用户名: ${ADMIN_USER}
   密码:   ${ADMIN_PASS}
 

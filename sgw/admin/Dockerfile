@@ -1,6 +1,7 @@
 FROM php:8.2-fpm-alpine
 
-RUN apk add --no-cache nginx docker-cli tzdata
+RUN apk add --no-cache nginx docker-cli tzdata \
+    && echo "date.timezone = Asia/Shanghai" > /usr/local/etc/php/conf.d/timezone.ini
 ENV TZ=Asia/Shanghai
 
 # php-fpm + nginx 配置
@@ -11,6 +12,6 @@ RUN chown -R nginx:nginx /var/www/html
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 64444
+EXPOSE 8080
 
 ENTRYPOINT ["/entrypoint.sh"]

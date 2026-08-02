@@ -75,6 +75,7 @@ chmod +x setup.sh
 | 订阅路径 | 默认 `/s/`（XBoard 格式），直接回车即可 |
 | 订阅端口 | 机场后端监听端口，默认 `443` |
 | 网关端口 | 客户端订阅链接对外暴露的端口，默认 `443` |
+| 管理员账号 | 设置后台访问路径、用户名和密码（443 端口，如 `/wallyperry`） |
 | 域名（SSL） | 输入已解析到本机的域名，脚本自动调用 acme.sh 申请证书；留空则手动放证书 |
 
 部署完成后，访问信息会打印在终端，同时保存到 `DEPLOY_INFO.txt`。
@@ -136,18 +137,12 @@ cd SubSieve/sgw
 ## 访问后台
 
 ```
-https://你的域名/<随机路径>
+https://你的域名/你设置的路径
 ```
 
-推荐使用 **443 端口 + 随机路径**（与订阅网关同端口，兼容 Cloudflare 等 CDN）。
+管理后台路径在部署时由 `setup.sh` 向导指定，与订阅网关共用 **443 端口**（兼容 Cloudflare 等 CDN）。
 
-备用直连（需服务器放行 64444，CDN 通常不支持该端口）：
-
-```
-https://你的域名:64444/<随机路径>
-```
-
-路径和账号密码见 `DEPLOY_INFO.txt`，或查看 `.env` 中的 `ADMIN_SECRET_PATH` / `ADMIN_PASS`。
+账号密码同样是在部署时设置的，也可查看 `DEPLOY_INFO.txt` 或 `.env` 中的 `ADMIN_SECRET_PATH` / `ADMIN_USER` / `ADMIN_PASS`。
 
 ---
 

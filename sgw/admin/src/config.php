@@ -20,6 +20,8 @@ define('SETTINGS_JSON',     '/etc/nginx/subscribe/admin_settings.json');
 define('PROTECT_CONF',      '/etc/nginx/subscribe/protect.conf');
 define('DEPLOY_INFO_FILE',  '/var/log/subscribe/DEPLOY_INFO.txt');
 define('DEFAULT_SUBSCRIBE_PATH', '/s/');
+define('APP_TIMEZONE', getenv('TZ') ?: 'Asia/Shanghai');
+date_default_timezone_set(APP_TIMEZONE);
 
 // 读取持久化设置（覆盖环境变量）
 $_sg = [];
@@ -34,7 +36,7 @@ define('NGINX_RELOAD_SIGNAL',     '/etc/nginx/subscribe/.reload');
 define('WHITELIST_RELOAD_SIGNAL', '/etc/nginx/subscribe/.reload_whitelist');
 define('GATEWAY_PORT',      (int)(getenv('GATEWAY_PORT') ?: 443));
 define('SESSION_LIFETIME',  (int)(getenv('SESSION_LIFETIME') ?: 28800)); // 8小时
-// 后台访问路径前缀，留空则不校验（例如 ef9d1566 → 必须访问 /ef9d1566 才能进入后台）
+// 后台访问路径前缀（部署时在 setup.sh 中设置，例如 wallyperry → /wallyperry）
 define('ADMIN_SECRET_PATH', trim(trim(getenv('ADMIN_SECRET_PATH') ?: ''), '/'));
 
 // 界面显示设置
@@ -101,6 +103,36 @@ function safe_comment(string $s): string {
 function nginx_ua_pattern(string $ua): string {
     $p = preg_quote($ua, '~');
     return str_replace(['\\', '"'], ['\\\\', '\\"'], $p);
+}
+
+/**
+ * 后台展示用的「今日」日期标签（d/M/Y，与 nginx $time_local 月日格式一致）。
+ */
+function app_today_log_prefix(): string {
+    return (new DateTime('now', new DateTimeZone(APP_TIMEZONE)))->format('d/M/Y');
+}
+
+/**
+ * 从日志行解析时间戳；解析失败返回 null。
+ */
+function parse_log_datetime(string $line): ?DateTime {
+    if (!preg_match('/\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4})\]/', $line, $m)) {
+        return null;
+    }
+    $dt = DateTime::createFromFormat('d/M/Y:H:i:s O', $m[1]);
+    return $dt ?: null;
+}
+
+/**
+ * 判断日志行是否属于应用时区的「今日」。
+ * 不能仅用字符串匹配日期，否则 nginx(+0800) 与 PHP(UTC) 会错位。
+ */
+function is_log_line_today(string $line): bool {
+    $dt = parse_log_datetime($line);
+    if (!$dt) return false;
+    $dt->setTimezone(new DateTimeZone(APP_TIMEZONE));
+    $today = (new DateTime('now', new DateTimeZone(APP_TIMEZONE)))->format('Y-m-d');
+    return $dt->format('Y-m-d') === $today;
 }
 
 /**

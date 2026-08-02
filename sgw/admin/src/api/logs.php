@@ -132,12 +132,10 @@ if ($method === 'DELETE') {
     $kept = []; $deletedCount = 0;
 
     foreach ($lines as $line) {
-        if (preg_match('/\[(\d{2}\/\w+\/\d{4})/', $line, $m)) {
-            $d = DateTime::createFromFormat('d/M/Y', $m[1]);
-            if ($d && $d->getTimestamp() < $cutoff) {
-                $deletedCount++;
-                continue;
-            }
+        $dt = parse_log_datetime($line);
+        if ($dt && $dt->getTimestamp() < $cutoff) {
+            $deletedCount++;
+            continue;
         }
         $kept[] = $line;
     }
@@ -148,7 +146,7 @@ if ($method === 'DELETE') {
 
 // ── GET — 返回日志列表 ──────────────────────────────────────
 $mode    = $_GET['mode'] ?? 'today';
-$today   = date('d/M/Y');
+$today   = app_today_log_prefix();
 $maxRows = 3000;
 $logs    = [];
 
@@ -159,7 +157,7 @@ if (file_exists(LOG_FILE)) {
         while (($line = fgets($handle)) !== false) {
             $line = rtrim($line);
             if ($line === '') continue;
-            if ($mode === 'today' && !str_contains($line, "[$today:")) continue;
+            if ($mode === 'today' && !is_log_line_today($line)) continue;
             $buffer[] = $line;
             if (count($buffer) > $maxRows) array_shift($buffer);
         }
@@ -220,9 +218,6 @@ function nginx_combined_to_internal(string $line): ?string {
 
 // ── 从日志行提取时间戳（用于排序）────────────────────────────
 function extract_timestamp(string $line): int {
-    if (!preg_match('/\[(\d{2}\/\w{3}\/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4})\]/', $line, $m)) {
-        return 0;
-    }
-    $dt = DateTime::createFromFormat('d/M/Y:H:i:s O', $m[1]);
+    $dt = parse_log_datetime($line);
     return $dt ? $dt->getTimestamp() : 0;
 }
