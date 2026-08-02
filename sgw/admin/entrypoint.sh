@@ -29,5 +29,19 @@ chmod 777 /var/log/subscribe
 touch /var/log/subscribe/access.log
 chmod 666 /var/log/subscribe/access.log
 
+# 首次启动：将 .env 中的管理员凭证写入 settings.json（若尚未设置）
+php -r '
+$f = "/etc/nginx/subscribe/admin_settings.json";
+$s = json_decode(@file_get_contents($f), true);
+if (!is_array($s)) $s = [];
+$envPass = getenv("ADMIN_PASS") ?: "";
+$envUser = getenv("ADMIN_USER") ?: "admin";
+if ($envPass !== "" && empty($s["admin_pass"])) {
+    $s["admin_user"] = $envUser;
+    $s["admin_pass"] = $envPass;
+    file_put_contents($f, json_encode($s, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
+'
+
 php-fpm -D
 exec nginx -g 'daemon off;'

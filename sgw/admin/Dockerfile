@@ -1,7 +1,8 @@
 FROM php:8.2-fpm-alpine
 
 RUN apk add --no-cache nginx docker-cli tzdata \
-    && echo "date.timezone = Asia/Shanghai" > /usr/local/etc/php/conf.d/timezone.ini
+    && echo "date.timezone = Asia/Shanghai" > /usr/local/etc/php/conf.d/timezone.ini \
+    && echo "clear_env = no" >> /usr/local/etc/php-fpm.d/www.conf
 ENV TZ=Asia/Shanghai
 
 # php-fpm + nginx 配置

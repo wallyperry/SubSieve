@@ -273,9 +273,16 @@ elif ! docker info &>/dev/null 2>&1; then
     systemctl start docker 2>/dev/null || true
 fi
 
+escape_env_val() {
+    # docker compose .env：转义 $，避免被当作变量插值
+    printf '%s' "$1" | sed 's/\$/$$/g'
+}
+
 GATEWAY_CONTAINER="subscribe-gateway"
 
 # ── 写入 .env ─────────────────────────────────────────────────
+_ENV_ADMIN_USER="$(escape_env_val "$ADMIN_USER")"
+_ENV_ADMIN_PASS="$(escape_env_val "$ADMIN_PASS")"
 cat > .env <<EOF
 # 由 setup.sh 自动生成 | $(date '+%Y-%m-%d %H:%M:%S')
 # 请妥善保管此文件，勿泄露
@@ -287,11 +294,12 @@ GATEWAY_PORT=${GATEWAY_PORT}
 AXISNOW_TRUSTED_IPS=${AXISNOW_TRUSTED_IPS}
 REAL_IP_HEADER=${REAL_IP_HEADER}
 
-ADMIN_USER=${ADMIN_USER}
-ADMIN_PASS=${ADMIN_PASS}
+ADMIN_USER=${_ENV_ADMIN_USER}
+ADMIN_PASS=${_ENV_ADMIN_PASS}
 ADMIN_SECRET_PATH=${ADMIN_SECRET_PATH}
 GATEWAY_CONTAINER=${GATEWAY_CONTAINER}
 EOF
+unset _ENV_ADMIN_USER _ENV_ADMIN_PASS
 
 echo -e "${GREEN}✅ .env 已生成${RESET}"
 
@@ -310,6 +318,19 @@ for i in $(seq 1 60); do
     echo -n "."
 done
 echo ""
+
+# 新设置管理员凭证时，强制同步到 settings.json（覆盖旧卷中的过期密码）
+if [[ "$KEEP_ADMIN_CREDS" != "true" ]]; then
+    echo -e "${CYAN}同步管理员凭证…${RESET}"
+    docker exec subscribe-admin php -r '
+$f = "/etc/nginx/subscribe/admin_settings.json";
+$s = json_decode(@file_get_contents($f), true);
+if (!is_array($s)) $s = [];
+$s["admin_user"] = getenv("ADMIN_USER") ?: "admin";
+$s["admin_pass"] = getenv("ADMIN_PASS") ?: "";
+file_put_contents($f, json_encode($s, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+' 2>/dev/null || echo -e "${YELLOW}⚠  凭证同步跳过（admin 容器尚未就绪，请稍后重建 admin 容器）${RESET}"
+fi
 
 # ── 打印访问信息 ──────────────────────────────────────────────
 print_summary() {

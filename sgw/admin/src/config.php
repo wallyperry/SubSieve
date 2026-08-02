@@ -30,8 +30,29 @@ if (file_exists(SETTINGS_JSON)) {
     if (is_array($_d)) $_sg = $_d;
 }
 
-define('ADMIN_USER',        $_sg['admin_user']      ?? (getenv('ADMIN_USER')        ?: 'admin'));
-define('ADMIN_PASS',        $_sg['admin_pass']      ?? (getenv('ADMIN_PASS')        ?: ''));
+/**
+ * 解析管理员凭证：settings.json 优先（面板改密），否则回退 .env。
+ * 使用 !empty 避免 settings 中空字符串阻断 .env。
+ */
+function resolve_admin_user(): string {
+    global $_sg;
+    if (!empty($_sg['admin_user'])) {
+        return trim((string)$_sg['admin_user']);
+    }
+    $env = trim(getenv('ADMIN_USER') ?: '');
+    return $env !== '' ? $env : 'admin';
+}
+
+function resolve_admin_pass(): string {
+    global $_sg;
+    if (!empty($_sg['admin_pass'])) {
+        return (string)$_sg['admin_pass'];
+    }
+    return getenv('ADMIN_PASS') ?: '';
+}
+
+define('ADMIN_USER',        resolve_admin_user());
+define('ADMIN_PASS',        resolve_admin_pass());
 define('NGINX_RELOAD_SIGNAL',     '/etc/nginx/subscribe/.reload');
 define('WHITELIST_RELOAD_SIGNAL', '/etc/nginx/subscribe/.reload_whitelist');
 define('GATEWAY_PORT',      (int)(getenv('GATEWAY_PORT') ?: 443));
